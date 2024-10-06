@@ -1,0 +1,47 @@
+version: 0.2
+
+env:
+  variables:
+    AWS_ACCOUNT_ID: 463470963000
+    AWS_DEFAULT_REGION: eu-west-2
+    TRADE_SIGNAL_PROCESSING_REPO: trade-signal-processing
+    MARKET_DATA_INGESTION_REPO: market-data-ingestion
+    RISK_MANAGEMENT_SERVICE: risk-management-service
+    IMAGE_TAG: latest
+
+phases:
+  install:
+    commands:
+      - echo "Installing dependencies"
+      - apt-get update -y
+      - apt-get install -y docker
+      - pip install --upgrade pip
+
+  pre-build:
+    commands:
+      - echo "Logging in to Amazon ECR"
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - echo "Pulling base images for microservices"
+
+  build: 
+    commands:
+      - echo "Building Trade Signal Processor Docker image"
+      - docker build -t $TRADE_SIGNAL_PROCCESING_REPO:$IMAGE_TAG ./trade-signal-processing
+      - docker tag $TRADE_SIGNAL_PROCESSING_REPO:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$TRADE_SIGNAL_PROCESSING:$IMAGE_TAG
+
+      - echo "Building Market Data Ingestion Docker image"
+      - docker build -t $MARKET_DATA_INGESTION_REPO:$IMAGE_TAG ./market_data-ingestion
+      - docker tag $MARKET_DATA_INGESTION_REPO:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$MARKET_DATA_INGESTION_REPO:$IMAGE_TAG
+
+      - echo "Building Risk Management Service Docker image"
+      - docker build -t $RISK_MANAGEMENT_SERVICE_REPO:$IMAGE_TAG ./risk-management-service
+      - docker tag $RISK_MANAGEMENT_SERVICE_REPO:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$RISK_MANAGEMENT_SERVICE_REPO:$IMAGE_TAG 
+
+  post-build: 
+    commands: 
+      - echo "Pushing Docker Images to ECR"
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$TRADE_SIGNAL_PROCESSING:$IMAGE_TAG
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$MARKET_DATA_INGESTION_REPO:$IMAGE_TAG
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$RISK_MANAGEMENT_SERVICE_REPO:$IMAGE_TAG 
+
+
