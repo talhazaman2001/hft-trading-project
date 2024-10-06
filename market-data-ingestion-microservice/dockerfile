@@ -1,0 +1,21 @@
+# Dockerfile for Market Data Ingestor
+FROM python:3.12-slim
+
+# Set working directory
+WORKDIR /app
+
+# Copy Python requirements.txt file
+COPY requirements.txt .
+
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the application code
+COPY app.py .
+
+# Set environment variables
+ENV KINESIS_STREAM market_data_stream
+
+# Run the application
+CMD ["python", "app.py"]
+
