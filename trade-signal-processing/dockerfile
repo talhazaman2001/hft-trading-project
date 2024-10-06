@@ -1,0 +1,22 @@
+# Dockerfile for Trade Signal Processor
+FROM python:3.12-slim
+
+# Set working directory
+WORKDIR /app
+
+# Copy Python requirements file
+COPY requirements.txt .
+
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the application code
+COPY app.py .
+
+# Set environmental variables 
+ENV DYNAMODB_TABLE trade_signals
+
+# Run the application
+CMD ["python", "app.py"]
+
+
