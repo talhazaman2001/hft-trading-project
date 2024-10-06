@@ -1,0 +1,24 @@
+# Dockerfile for Risk Management Service
+FROM python:3.12-slim
+
+# Set working directory
+WORKDIR /app
+
+# Copy Python requirements.txt file
+COPY requirements.txt .
+
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the application code
+COPY app.py .
+
+# Set environment variables
+ENV AURORA_DB_HOST my-aurora-host 
+ENV AURORA_DB_USER my-aurora-user 
+ENV AURORA_DB_PASSWORD my-aurora-password 
+ENV AURORA_DB_NAME risk_management
+
+# Run the application
+CMD ["python", "app.py"]
+
