@@ -121,22 +121,22 @@ resource "aws_ecs_task_definition" "hft_task" {
     family = "hft-task"
     execution_role_arn = aws_iam_role.ecs_task_execution_role.arn
     task_role_arn = aws_iam_role.ecs_task_execution_role.arn
-    network_mode = "bridge"
+    network_mode = "awsvpc"
     requires_compatibilities = ["EC2"]
     cpu = "1024"
     memory = "2048"
 
     container_definitions = jsonencode([
         {
-            name = "trade-signal-processor"
-            image = "${aws_ecr_repository.trade_signal_processor.repository_url}:latest"
+            name = "trade-signal-processing"
+            image = "${aws_ecr_repository.trade_signal_processing.repository_url}:latest"
             essential = true 
-            cpu = 512
-            memory = 1024
+            cpu = 256
+            memory = 512
             portMappings = [
                 {
-                    containerPort = 80
-                    hostPort = 80
+                    containerPort = 5000
+                    hostPort = 5000
                 }
             ],
             environment = [
@@ -147,15 +147,15 @@ resource "aws_ecs_task_definition" "hft_task" {
             ]
         },
         {
-            name = "market-data-ingestor"
-            image = "${aws_ecr_repository.market_data_ingestor.repository_url}:latest"
+            name = "market-data-ingestion"
+            image = "${aws_ecr_repository.market_data_ingestion.repository_url}:latest"
             essential = true 
-            cpu = 512
-            memory = 1024
+            cpu = 256
+            memory = 512
             portMappings = [
                 {
-                    containerPort = 80
-                    hostPort = 80
+                    containerPort = 8080
+                    hostPort = 8080
                 }
             ],
             environment = [
@@ -169,12 +169,12 @@ resource "aws_ecs_task_definition" "hft_task" {
             name = "risk-management-service"
             image = "${aws_ecr_repository.risk_management_service.repository_url}:latest"
             essential = true 
-            cpu = 512
-            memory = 1024
+            cpu = 256
+            memory = 512
             portMappings = [
                 {
-                    containerPort = 80
-                    hostPort = 80
+                    containerPort = 6000
+                    hostPort = 6000
                 }
             ],
             environment = [
@@ -203,11 +203,39 @@ resource "aws_ecs_task_definition" "hft_task" {
 resource "aws_security_group" "ecs_sg" {
     vpc_id = aws_vpc.main_vpc.id
     name = "ecs-service-sg"
+
+    ingress {
+        from_port = 5000
+        to_port = 5000
+        protocol = "tcp"
+        security_groups = [aws_security_group.alb_sg.id]
+    }
+
+    ingress {
+        from_port = 8080
+        to_port = 8080
+        protocol = "tcp"
+        security_groups = [aws_security_group.alb_sg.id]
+    }
+
+    ingress {
+        from_port = 6000
+        to_port = 6000
+        protocol = "tcp"
+        security_groups = [aws_security_group.alb_sg.id]
+    }
+
+    egress {
+        from_port = 0
+        to_port = 0
+        protocol = "-1"
+        cidr_blocks = ["0.0.0.0/0"]
+    }
 }
 
 # Define the 3 ECS services
-resource "aws_ecs_service" "trade_signal_processor" {
-    name = "trade-signal-processor"
+resource "aws_ecs_service" "trade_signal_processing" {
+    name = "trade-signal-processing"
     cluster = aws_ecs_cluster.hft_cluster.id
     task_definition = aws_ecs_task_definition.hft_task.arn
     launch_type = "EC2"
@@ -218,9 +246,9 @@ resource "aws_ecs_service" "trade_signal_processor" {
     }
 
     load_balancer {
-      target_group_arn = aws_lb_target_group.trade_signal_processor_blue_tg.arn
-      container_name = "trade-signal-processor"
-      container_port = 80
+      target_group_arn = aws_lb_target_group.trade_signal_processing_blue_tg.arn
+      container_name = "trade-signal-processing"
+      container_port = 5000
     }
 
     network_configuration {
@@ -230,8 +258,8 @@ resource "aws_ecs_service" "trade_signal_processor" {
     }
 }
 
-resource "aws_ecs_service" "market_data_ingestor" {
-    name = "market-data-ingestor"
+resource "aws_ecs_service" "market_data_ingestion" {
+    name = "market-data-ingestion"
     cluster = aws_ecs_cluster.hft_cluster.id
     task_definition = aws_ecs_task_definition.hft_task.arn
     launch_type = "EC2"
@@ -242,9 +270,9 @@ resource "aws_ecs_service" "market_data_ingestor" {
     }
 
     load_balancer {
-      target_group_arn = aws_lb_target_group.market_data_ingestor_blue_tg.arn
-      container_name = "market-data-ingestor"
-      container_port = 80
+      target_group_arn = aws_lb_target_group.market_data_ingestion_blue_tg.arn
+      container_name = "market-data-ingestion"
+      container_port = 8080
     }
 
     network_configuration {
@@ -268,7 +296,7 @@ resource "aws_ecs_service" "risk_management_service" {
     load_balancer {
       target_group_arn = aws_lb_target_group.risk_management_service_blue_tg.arn
       container_name = "risk-management-service"
-      container_port = 80
+      container_port = 6000
     }
 
     network_configuration {

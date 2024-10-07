@@ -18,7 +18,7 @@ resource "aws_iam_role" "sagemaker_execution_role" {
 
 # IAM Policy for Sagemaker to read from DynamoDB
 resource "aws_iam_policy" "sagemaker_dynamodb_policy" {
-  name = "sagemaker-rds-dynamodb-policy"
+  name = "sagemaker-rds-dynamodb-policy-talha"
 
   policy = jsonencode({
     Version = "2012-10-17",
@@ -46,9 +46,19 @@ resource "aws_iam_role_policy_attachment" "sagemaker_cloudwatch_logging" {
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess" 
 }
 
+resource "aws_iam_role_policy_attachment" "sagemaker_full_access" {
+  role       = aws_iam_role.sagemaker_execution_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSageMakerFullAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "sagemaker_xray_policy" {
+    role = aws_iam_role.sagemaker_execution_role.name
+    policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+}
+
 # IAM Policy for Sagemaker to access S3 Bucket to read datasets, write model artifacts, and retrieve training results
 resource "aws_iam_policy" "sagemaker_execution_s3_access_policy" {
-  name = "sagemaker-s3-access-policy"
+  name = "sagemaker-s3-access-policy-talha"
 
   policy = jsonencode({
     Version = "2012-10-17",
@@ -80,61 +90,35 @@ resource "aws_sagemaker_notebook_instance" "hft_notebook" {
     name = "hft-notebook-instance"
     instance_type = "ml.t2.medium"  
     role_arn = aws_iam_role.sagemaker_execution_role.arn
-    lifecycle_config_name = aws_sagemaker_notebook_instance_lifecycle_config.hft_notebook_lifecycle.name
+    lifecycle_config_name = aws_sagemaker_notebook_instance_lifecycle_configuration.hft_notebook_lifecycle.name
 
     tags = {
         Name = "HFT-SageMaker-Notebook"
     }
 }
 
-# IAM Role for SageMaker Notebook
-resource "aws_iam_role" "sagemaker_execution_role" {
-    name = "sagemaker-execution-role"
-    
-    assume_role_policy = jsonencode({
-        Version = "2012-10-17"
-        Statement = [
-            {
-                Effect = "Allow"
-                Principal = {
-                    Service = "sagemaker.amazonaws.com"
-                    },
-                    Action = "sts:AssumeRole"
-            }
-        ]
-    })
-}
-
-# Attach necessary policies to the IAM Role
-resource "aws_iam_role_policy_attachment" "sagemaker_full_access" {
-  role       = aws_iam_role.sagemaker_execution_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSageMakerFullAccess"
-}
-
-resource "aws_iam_role_policy_attachment" "sagemaker_xray_policy" {
-    role = aws_iam_role.sagemaker_execution_role.arn
-    policy_arn = "arn:aws:iam::aws:policy/AmazonXRayDaemonWriteAccess"
-}
 
 # SageMaker Notebook Instance Lifecycle Configuration
 resource "aws_sagemaker_notebook_instance_lifecycle_configuration" "hft_notebook_lifecycle" {
-    name = "hft-notebook-lifecycle"
+  name = "hft-notebook-lifecycle"
 
-    on_start = <<EOF
+  on_start = base64encode(<<EOF
 #!/bin/bash
 sudo -u ec2-user -i <<'EOF2'
 pip install --upgrade boto3
 pip install numpy pandas scikit-learn
 EOF2
 EOF
+)
 
-    on_create = <<EOF
-#!/bin/basj
+  on_create = base64encode(<<EOF
+#!/bin/bash
 sudo -u ec2-user -i <<'EOF2'
 
 echo "Notebook instance created"
 EOF2
 EOF
+)
 }
 
 # Create the SageMaker model
@@ -144,7 +128,7 @@ resource "aws_sagemaker_model" "hft_model" {
 
     primary_container {
       image = "xgboost:latest"
-      model_data_url = "s3://${aws_s3_bucket.sagemaker_bucket.bucket}/training-data-and-artifacts/model.tar.gz"
+      model_data_url = "s3://${aws_s3_bucket.sagemaker_bucket.bucket}/model.tar.gz"
     }
 }
 

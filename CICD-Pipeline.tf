@@ -36,7 +36,7 @@ resource "aws_iam_role" "codebuild_role" {
 }
 
 resource "aws_iam_role_policy_attachment" "codebuild_attach" {
-  role       = aws_iam_role.codepipeline_role.name
+  role       = aws_iam_role.codebuild_role.name
   policy_arn = "arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess"
 }
 
@@ -57,8 +57,8 @@ resource "aws_iam_role" "codedeploy_role" {
 }
 
 resource "aws_iam_role_policy_attachment" "codedeploy_attach" {
-  role       = aws_iam_role.codepipeline_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSCodeDeployRoleForECS"
+  role       = aws_iam_role.codedeploy_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSCodeDeployRoleForECS"
 }
 
 # Create CodeBuild project
@@ -253,7 +253,7 @@ resource "aws_codestarconnections_connection" "github_connection" {
 # CodePipeline to automate entire deployment process
 resource "aws_codepipeline" "hft_pipeline" {
     name = "hft-pipeline"
-    role_arn = aws_iam_role.codepipeline_role
+    role_arn = aws_iam_role.codepipeline_role.arn
 
     artifact_store {
       type = "S3"
@@ -304,8 +304,8 @@ resource "aws_codepipeline" "hft_pipeline" {
         version = "1"
         input_artifacts = ["BuildOutput"]
         configuration = {
-            ApplicationName = "${aws_codedeploy_app.hft_app.name}"
-            DeploymentGroupName = "${aws_codedeploy_deployment_group.trade_processing_codedeploy_group.deployment_group.name}"
+          ApplicationName = "${aws_codedeploy_app.hft_codedeploy_app.name}"
+          DeploymentGroupName = "${aws_codedeploy_deployment_group.trade_signal_processing_codedeploy_group.deployment_group_name}"
         }
       }
 
@@ -317,8 +317,8 @@ resource "aws_codepipeline" "hft_pipeline" {
         version = "1"
         input_artifacts = ["BuildOutput"]
         configuration = {
-            ApplicationName = "${aws_codedeploy_app.hft_app.name}"
-            DeploymentGroupName = "${aws_codedeploy_deployment_group.market_data_ingestion_codedeploy_group.deployment_group.name}"
+          ApplicationName = "${aws_codedeploy_app.hft_codedeploy_app.name}"
+          DeploymentGroupName = "${aws_codedeploy_deployment_group.market_data_ingestion_codedeploy_group.deployment_group_name}"
         }
       }
 
@@ -330,8 +330,8 @@ resource "aws_codepipeline" "hft_pipeline" {
         version = "1"
         input_artifacts = ["BuildOutput"]
         configuration = {
-            ApplicationName = "${aws_codedeploy_app.hft_app.name}"
-            DeploymentGroupName = "${aws_codedeploy_deployment_group.risk_management_codedeploy_group.deployment_group.name}"
+          ApplicationName = "${aws_codedeploy_app.hft_codedeploy_app.name}"
+          DeploymentGroupName = "${aws_codedeploy_deployment_group.risk_management_service_codedeploy_group.deployment_group_name}"
         }
       }
     }

@@ -2,7 +2,7 @@
 resource "aws_rds_cluster" "aurora_cluster" {
     cluster_identifier = "auror-cluster"
     engine = "aurora-mysql"
-    engine_version = "5.7.mysql_aurora.2.07.1"
+    engine_version = "8.0"
     master_username = "admin"
     master_password = "password"
     backup_retention_period = 7
@@ -13,10 +13,6 @@ resource "aws_rds_cluster" "aurora_cluster" {
     db_subnet_group_name = aws_db_subnet_group.aurora_subnet_group.name
 
     vpc_security_group_ids = [aws_security_group.aurora_sg.id]
-
-    depends_on = [
-        aws_iam_role_policy_attachment.ecs_task_aurora_policy_attach
-    ]
 }
 
 # Define Aurora DB Instanecs
@@ -30,7 +26,7 @@ resource "aws_rds_cluster_instance" "aurora_instance" {
 
 # Subnet Group for Aurora Cluster
 resource "aws_db_subnet_group" "aurora_subnet_group" {
-    name = "aurora-subnet-group"
+    name = "aurora-subnet-group-talha"
     subnet_ids = aws_subnet.private_subnets[*].id
 }
 
@@ -47,7 +43,7 @@ resource "aws_security_group" "aurora_sg" {
         cidr_blocks = ["10.0.0.0/16"]
     }
 
-    egress = {
+    egress {
         from_port = 0
         to_port = 0
         protocol = "-1"
@@ -82,8 +78,6 @@ resource "aws_dynamodb_table" "dynamodb_trade_signal_table" {
       name = "Symbol"
       type = "S"
     }
-
-    tags = "DynamoDBTradeSignalTable"
 }
 
 # DynamoDB Market Data Ingestor Table
@@ -113,58 +107,16 @@ resource "aws_dynamodb_table" "dynamodb_market_data_table" {
       type = "N"
     }
 
-    tags = "DynamoDBMarketDataTable"
-}
+    global_secondary_index {
+      name = "PriceIndex"
+      hash_key = "Price"
+      projection_type = "ALL"
+    }
 
-# IAM Role for ECS and Sagemaker to access DynamoDB
-resource "aws_iam_role" "ecs_sagemaker_dynamodb_role" {
-    name = "ecs-sagemaker-dynamodb-role"
-
-    assume_role_policy = jsonencode({
-        Version = "2012-10-17"
-        Statement = [
-            {
-                Effect = "Allow"
-                Principal = {
-                    Service = [
-                        "ecs-tasks.amazonaws.com",
-                        "sagemaker.amazonaws.com"
-                    ]
-                },
-                Action = "sts:AssumeRole"
-            }
-        ]
-    })
-}
-
-# Policy for DynamoDB read/write access
-resource "aws_iam_policy" "dynamodb_access_policy" {
-    name = "ecs-dynamodb-sagemaker-policy"
-    description = "Allow ECS tasks and SageMaker to access DynamoDB"
-
-    policy = jsonencode({
-        Version = "2012-10-17"
-        Statemenet = [
-            {
-                Effect = "Allow",
-                Action = [
-                    "dynamodb:PutItem",
-                    "dynamodb:GetItem",
-                    "dynamodb:Query",
-                    "dynamodb:UpdateItem"
-                ],
-                Resource = [
-                    aws_dynamodb_table.hft_dynamodb_table.arn,
-                    "${aws_dynamodb_table.hft_dynamodb_table.arn}/index/*"
-                ]
-            }
-        ]
-    })
-}
-
-# Attach Policy to Role
-resource "aws_iam_role_policy_attachment" "dynamodb_policy_attachment" {
-    role = aws_iam_role.ecs_sagemaker_dynamodb_role.name
-    policy_arn = aws_iam_policy.dynamodb_access_policy.arn
+    global_secondary_index {
+      name = "VolumeIndex"
+      hash_key = "Volume"
+      projection_type = "ALL"
+    }
 }
 

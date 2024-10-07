@@ -95,6 +95,24 @@ resource "aws_lb_listener" "nlb_listener" {
     }
 }
 
+# Data Source to fetch the latest Ubuntu AMI
+data "aws_ami" "ubuntu" {
+    most_recent = true 
+    
+    filter {
+      name = "name"
+      values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
+    }
+
+    filter {
+        name = "virtualization-type"
+        values = ["hvm"]
+    }
+
+    owners = ["099720109477"]
+}
+
+
 # EC2 Launch Template
 resource "aws_launch_template" "ec2_launch_template" {
     name = "hft-ec2-launch-template"
@@ -177,7 +195,7 @@ resource "aws_security_group" "ec2_sg" {
 resource "aws_autoscaling_schedule" "pre_provision_scale_up" {
     autoscaling_group_name = aws_autoscaling_group.blue_asg.name
     scheduled_action_name = "PreProvisionScaleUp"
-    recurrence = "0 8 ** 1-5" # Scale up at 8AM on weekdays for market open
+    recurrence = "0 8 * * 1-5" # Scale up at 8AM on weekdays for market open
     desired_capacity = 5
     min_size = 5
     max_size = 10
@@ -186,7 +204,7 @@ resource "aws_autoscaling_schedule" "pre_provision_scale_up" {
 resource "aws_autoscaling_schedule" "pre_provision_scale_down" {
     autoscaling_group_name = aws_autoscaling_group.blue_asg.name
     scheduled_action_name = "PreProvisionScaleDown"
-    recurrence = "0 16 ** 1-5" # Scale down after 4PM on weekdays for market close
+    recurrence = "0 16 * * 1-5" # Scale down after 4PM on weekdays for market close
     desired_capacity = 2
     min_size = 2
     max_size = 5
@@ -201,7 +219,6 @@ resource "aws_autoscaling_policy" "custom_metric_scale_up" {
     autoscaling_group_name = aws_autoscaling_group.blue_asg.name
 
     metric_aggregation_type = "Average"
-    estimated_instance_warmup = 120
 
     policy_type = "SimpleScaling"
 }
@@ -229,14 +246,12 @@ resource "aws_autoscaling_policy" "custom_metric_scale_down" {
     autoscaling_group_name = aws_autoscaling_group.blue_asg.name
 
     metric_aggregation_type = "Average"
-    estimated_instance_warmup = 120
-
     policy_type = "SimpleScaling"
 } 
 
 resource "aws_cloudwatch_metric_alarm" "scale_down_on_low_throughput" {
     alarm_name = "LowThroughputAlarm"
-    comparison_operator = "LowerThanThreshold"
+    comparison_operator = "LessThanThreshold"
     evaluation_periods = 2
     metric_name = "NetworkPacketsIn"
     namespace = "AWS/EC2"
@@ -259,7 +274,7 @@ resource "aws_autoscaling_policy" "predictive_scaling_policy" {
       metric_specification {
         target_value = 70
         predefined_metric_pair_specification {
-          predefined_metric_type = "ASGAverageCPUUtilisation"
+          predefined_metric_type = "ASGCPUUtilization"
         }
       }
       mode = "ForecastOnly"

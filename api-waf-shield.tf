@@ -10,12 +10,21 @@ resource "aws_api_gateway_resource" "hft_resource" {
   path_part   = "trading"
 }
 
-# GET Method to request trading data (API -> ALB -> EKS)
+# GET Method to request trading data (API -> ALB -> ECS)
 resource "aws_api_gateway_method" "get_trading_data" {
   rest_api_id   = aws_api_gateway_rest_api.hft_api.id
   resource_id   = aws_api_gateway_resource.hft_resource.id
   http_method   = "GET"
   authorization = "NONE"
+}
+
+# API Integration Method
+resource "aws_api_gateway_integration" "get_integration" {
+  rest_api_id   = aws_api_gateway_rest_api.hft_api.id
+  resource_id   = aws_api_gateway_resource.hft_resource.id
+  http_method   = aws_api_gateway_method_response.get_method_response.http_method
+  integration_http_method = "GET"
+  type = "MOCK"
 }
 
 # Method Response for GET Method (status code 200 = GET Method Successful)
@@ -24,6 +33,21 @@ resource "aws_api_gateway_method_response" "get_method_response" {
   resource_id = aws_api_gateway_resource.hft_resource.id
   http_method = "GET"
   status_code = "200"
+}
+
+# API Gateway Deployment
+resource "aws_api_gateway_deployment" "api_deployment" {
+  rest_api_id = aws_api_gateway_rest_api.hft_api.id
+  stage_name = "prod"
+
+  depends_on = [aws_api_gateway_integration.get_integration]
+}
+
+# API Gateway Stage
+resource "aws_api_gateway_stage" "api_stage" {
+  deployment_id = aws_api_gateway_deployment.api_deployment.id
+  rest_api_id = aws_api_gateway_rest_api.hft_api.id
+  stage_name = "prod"
 }
 
 # Create WAFv2 Web ACL for API Gateway
@@ -100,14 +124,16 @@ resource "aws_wafv2_ip_set" "my_ip_set" {
 
 # Associate WAF Web ACL with API Gateway
 resource "aws_wafv2_web_acl_association" "api_gateway_association" {
-  resource_arn = aws_api_gateway_rest_api.hft_api.execution_arn
+  resource_arn = aws_api_gateway_stage.api_stage.arn
   web_acl_arn = aws_wafv2_web_acl.hft_waf_acl.arn
+  depends_on = [aws_api_gateway_deployment.api_deployment]
 }
 
 # Enable Shield Advanced for API Gateway (critical for DDoS protection)
 resource "aws_shield_protection" "api_shield_protection" {
   name = "hft-api-shield-protection"
-  resource_arn = aws_api_gateway_rest_api.hft_api.execution_arn
+  resource_arn = aws_api_gateway_deployment.api_deployment.execution_arn
+  depends_on = [aws_api_gateway_deployment.api_deployment]
 }
 
 # Enable Shield Advanced for ALB

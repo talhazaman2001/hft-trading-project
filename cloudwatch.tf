@@ -14,7 +14,7 @@ resource "aws_cloudwatch_metric_alarm" "ecs_high_cpu_alarm" {
     period = 300
     statistic = "Average"
     threshold = 80 # Trigger alarm at 80% CPU Utilisation
-    alarm_actions = [var.ecs_alarm_action]
+    alarm_actions = [aws_sns_topic.ecs_alarm_sns_topic.arn]
     dimensions = {
         ClusterName = "hft-cluster"
     }
@@ -31,9 +31,6 @@ resource "aws_sns_topic_subscription" "ecs_alarm_subscription" {
     endpoint = "mtalhazamanb@gmail.com"
 }
 
-variable "ecs_alarm_action" {
-    default = aws_sns_topic.ecs_alarm_sns_topic.arn
-}
 
 # EC2 CloudWatch Log Group
 resource "aws_cloudwatch_log_group" "ec2_log_group" {
@@ -50,6 +47,7 @@ data "aws_instances" "asg_instances" {
 }
 # EC2 CPU Utilisation Alarm
 resource "aws_cloudwatch_metric_alarm" "ec2_high_cpu_alarm" {
+    
     alarm_name = "ec2-high-cpu-alarm"
     comparison_operator = "GreaterThanThreshold"
     evaluation_periods = 2
@@ -58,9 +56,9 @@ resource "aws_cloudwatch_metric_alarm" "ec2_high_cpu_alarm" {
     period = 300
     statistic = "Average"
     threshold = 80 # Trigger alarm at 80% CPU Utilisation
-    alarm_actions = [var.ec2_alarm_action]
+    alarm_actions = [aws_sns_topic.ec2_alarm_sns_topic.arn]
     dimensions = {
-        InstanceId = data.aws_instances.asg_instances.ids[count.index]
+        AutoScalingGroupName = aws_autoscaling_group.blue_asg.name
     }
 }
 
@@ -73,10 +71,6 @@ resource "aws_sns_topic_subscription" "ec2_alarm_subscription" {
     topic_arn = aws_sns_topic.ec2_alarm_sns_topic.arn
     protocol = "email"
     endpoint = "mtalhazamanb@gmail.com"
-}
-
-variable "ec2_alarm_action" {
-    default = aws_sns_topic.ec2_alarm_sns_topic.arn
 }
 
 
@@ -96,9 +90,9 @@ resource "aws_cloudwatch_metric_alarm" "sagemaker_inference_error_alarm" {
     period = 3600
     statistic = "Average"
     threshold = 1000 # Trigger alarm if inference latency exceeds 1000ms
-    alarm_actions = [var.sagemaker_alarm_action]
+    alarm_actions = [aws_sns_topic.sagemaker_alarm_sns_topic.arn]
     dimensions = {
-        EndpointName = aws_sagemaker_endpoint.hft_endpoint.endpoint_name
+        EndpointName = aws_sagemaker_endpoint.hft_endpoint.name
     }
 }
 
@@ -113,9 +107,6 @@ resource "aws_sns_topic_subscription" "sagemaker_alarm_subscription" {
     endpoint = "mtalhazamanb@gmail.com"
 }
 
-variable "sagemaker_alarm_action" {
-    default = aws_sns_topic.sagemaker_alarm_sns_topic.arn
-}
 
 # Kinesis CloudWatch Log Group
 resource "aws_cloudwatch_log_group" "kinesis_log_group" {
@@ -133,7 +124,7 @@ resource "aws_cloudwatch_metric_alarm" "kinesis_incoming_data_alarm" {
     period = 300
     statistic = "Average"
     threshold = 100000 # Trigger alarm if incoming data is below 100KB
-    alarm_actions = [var.kinesis_alarm_action]
+    alarm_actions = [aws_sns_topic.kinesis_alarm_sns_topic.arn]
     dimensions = {
         StreamName = aws_kinesis_stream.market_data_stream.name
     }
@@ -148,10 +139,6 @@ resource "aws_sns_topic_subscription" "kinesis_alarm_subscription" {
     topic_arn = aws_sns_topic.kinesis_alarm_sns_topic.arn
     protocol = "email"
     endpoint = "mtalhazamanb@gmail.com"
-}
-
-variable "kinesis_alarm_action" {
-    default = aws_sns_topic.kinesis_alarm_sns_topic.arn
 }
 
 # Aurora CloudWatch Log Group
@@ -170,14 +157,14 @@ resource "aws_cloudwatch_metric_alarm" "aurora_db_connections_alarm" {
     period = 300
     statistic = "Average"
     threshold = 100 # Trigger alarm if connections exceed 100
-    alarm_actions = [var.aurora_alarm_action]
+    alarm_actions = [aws_sns_topic.aurora_alarm_sns_topic.arn]
     dimensions = {
         DBClusterIdentifier = aws_rds_cluster.aurora_cluster.id
     }
 }
 
 # SNS Topic for Aurora CloudWatch Alarm
-resource "aws_sns_topic" "Aurora_alarm_sns_topic" {
+resource "aws_sns_topic" "aurora_alarm_sns_topic" {
     name = "aurora-alarms-topic"
 }
 
@@ -185,8 +172,4 @@ resource "aws_sns_topic_subscription" "aurora_alarm_subscription" {
     topic_arn = aws_sns_topic.aurora_alarm_sns_topic.arn
     protocol = "email"
     endpoint = "mtalhazamanb@gmail.com"
-}
-
-variable "aurora_alarm_action" {
-    default = aws_sns_topic.aurora_alarm_sns_topic.arn
 }

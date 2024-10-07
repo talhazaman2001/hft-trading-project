@@ -39,7 +39,7 @@ resource "aws_subnet" "public_subnets" {
 resource "aws_subnet" "private_subnets" {
     count = length(var.private_subnet_cidrs)
     vpc_id = aws_vpc.main_vpc.id
-    cidr_block = element(var.public_subnet_cidrs, count.index)
+    cidr_block = element(var.private_subnet_cidrs, count.index)
     availability_zone = element(var.azs, count.index)
 }
 
@@ -54,7 +54,7 @@ resource "aws_route_table" "public_rt" {
 }
 
 # Associate Route Table with Public Subnet
-resource "aws_route_table_associaton" "public_rt_assoc" {
+resource "aws_route_table_association" "public_rt_assoc" {
     count = 3
     subnet_id = aws_subnet.public_subnets[count.index].id
     route_table_id = aws_route_table.public_rt.id
@@ -135,9 +135,9 @@ resource "aws_security_group" "alb_sg" {
 }
 
 # Define the Target Groups for Blue and Green Deployment
-resource "aws_lb_target_group" "trade_signal_processor_blue_tg" {
-    name = "trade-signal-processor-blue-tg"
-    port = 80
+resource "aws_lb_target_group" "trade_signal_processing_blue_tg" {
+    name = "trade-signal-processing-blue-tg"
+    port = 5000
     protocol = "HTTP"
     vpc_id = aws_vpc.main_vpc.id
     target_type = "ip"
@@ -146,9 +146,9 @@ resource "aws_lb_target_group" "trade_signal_processor_blue_tg" {
     }
 }
 
-resource "aws_lb_target_group" "trade_signal_processor_green_tg" {
-    name = "trade-signal-processor-green-tg"
-    port = 80
+resource "aws_lb_target_group" "trade_signal_processing_green_tg" {
+    name = "trade-signal-processing-green-tg"
+    port = 5000
     protocol = "HTTP"
     vpc_id = aws_vpc.main_vpc.id
     target_type = "ip"
@@ -157,9 +157,9 @@ resource "aws_lb_target_group" "trade_signal_processor_green_tg" {
     }
 }
 
-resource "aws_lb_target_group" "market_data_ingestor_blue_tg" {
-    name = "market-data-ingestor-blue-tg"
-    port = 80
+resource "aws_lb_target_group" "market_data_ingestion_blue_tg" {
+    name = "market-data-ingestion-blue-tg"
+    port = 8080
     protocol = "HTTP"
     vpc_id = aws_vpc.main_vpc.id
     target_type = "ip"
@@ -168,9 +168,9 @@ resource "aws_lb_target_group" "market_data_ingestor_blue_tg" {
     }
 }
 
-resource "aws_lb_target_group" "market_data_ingestor_green_tg" {
-    name = "market-data-ingestor-green-tg"
-    port = 80
+resource "aws_lb_target_group" "market_data_ingestion_green_tg" {
+    name = "market-data-ingestion-green-tg"
+    port = 8080
     protocol = "HTTP"
     vpc_id = aws_vpc.main_vpc.id
     target_type = "ip"
@@ -181,7 +181,7 @@ resource "aws_lb_target_group" "market_data_ingestor_green_tg" {
 
 resource "aws_lb_target_group" "risk_management_service_blue_tg" {
     name = "risk-management-service-blue-tg"
-    port = 80
+    port = 6000
     protocol = "HTTP"
     vpc_id = aws_vpc.main_vpc.id
     target_type = "ip"
@@ -192,7 +192,7 @@ resource "aws_lb_target_group" "risk_management_service_blue_tg" {
 
 resource "aws_lb_target_group" "risk_management_service_green_tg" {
     name = "risk-management-service-green-tg"
-    port = 80
+    port = 6000
     protocol = "HTTP"
     vpc_id = aws_vpc.main_vpc.id
     target_type = "ip"
@@ -203,46 +203,46 @@ resource "aws_lb_target_group" "risk_management_service_green_tg" {
 
 # Define the listener for market data
 resource "aws_lb_listener" "ecs_listener" {
-    load_balancer_arn = aws_lb.my_alb.arn  
-    port = 80                 
+    load_balancer_arn = aws_lb.ecs_alb.arn 
+    port = 80          
     protocol = "HTTP"
 
     default_action {
       type = "forward"
-      target_group_arn = aws_lb_target_group.market_data_ingestor_blue_tg
+      target_group_arn = aws_lb_target_group.trade_signal_processing_blue_tg.arn
     }
 }
 
 # Listener Rule for Trade Signal Processor
-resource "aws_lb_listener_rule" "trade_signal_processor_rule" {
+resource "aws_lb_listener_rule" "trade_signal_processing_rule" {
   listener_arn = aws_lb_listener.ecs_listener.arn
-  priority     = 1
+  priority = 1
 
   action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.trade_signal_processor_blue_tg.arn
+    type = "forward"
+    target_group_arn = aws_lb_target_group.trade_signal_processing_blue_tg.arn
   }
 
   condition {
     path_pattern {
-      values = ["/trade-signal-processor/*"]
+      values = ["/trade-signal-processing/*"]
     }
   }
 }
 
 # Listener Rule for Market Data Ingestor
-resource "aws_lb_listener_rule" "market_data_ingestor_rule" {
+resource "aws_lb_listener_rule" "market_data_ingestion_rule" {
   listener_arn = aws_lb_listener.ecs_listener.arn
-  priority     = 2
+  priority = 2
 
   action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.market_data_ingestor_blue_tg.arn
+    type = "forward"
+    target_group_arn = aws_lb_target_group.market_data_ingestion_blue_tg.arn
   }
 
   condition {
     path_pattern {
-      values = ["/market-data-ingestor/*"]
+      values = ["/market-data-ingestion/*"]
     }
   }
 }
@@ -250,10 +250,10 @@ resource "aws_lb_listener_rule" "market_data_ingestor_rule" {
 # Listener Rule for Risk Management Service
 resource "aws_lb_listener_rule" "risk_management_service_rule" {
   listener_arn = aws_lb_listener.ecs_listener.arn
-  priority     = 3
+  priority = 3
 
   action {
-    type             = "forward"
+    type = "forward"
     target_group_arn = aws_lb_target_group.risk_management_service_blue_tg.arn
   }
 

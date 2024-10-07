@@ -1,8 +1,8 @@
 # Create a Direct Connect Connection
 resource "aws_dx_connection" "my_dx_connection" {
     name = "my-direct-connect"
-    bandwidth = "100Gbps"
-    location = "Equinix LD5"
+    bandwidth = "10Gbps"
+    location = "LD5"
     provider_name = "Equinix"
 }
 
@@ -14,15 +14,17 @@ resource "aws_dx_gateway" "my_dx_gateway" {
 
 # Create Transit Gateway to connect Direct Connect to the VPC
 resource "aws_ec2_transit_gateway" "my_transit_gateway" {   
-    amazon_side_asn = "64512"
+    amazon_side_asn = "64513"
     description = "My Transit Gateway"
 }
 
 # Transit Gateway Association
-resource "aws_dx_gateway_associaton" "my_dx_gw_assoc" {
+resource "aws_dx_gateway_association" "my_dx_gw_assoc" {
     dx_gateway_id = aws_dx_gateway.my_dx_gateway.id
     allowed_prefixes = ["10.0.0.0/16"] # Prefix for the on-prem network
-    transit_gateway_id = aws_ec2_transit_gateway.my_transit_gateway.idd
+    associated_gateway_id = aws_ec2_transit_gateway.my_transit_gateway.id
+
+    depends_on = [aws_ec2_transit_gateway.my_transit_gateway]
 }
 
 # Add Route to allow Direct Connect Traffic to VPC
@@ -30,6 +32,8 @@ resource "aws_route" "tgw_route" {
     route_table_id = aws_route_table.private_rt.id
     destination_cidr_block = "0.0.0.0/0"
     transit_gateway_id = aws_ec2_transit_gateway.my_transit_gateway.id
+
+    depends_on = [aws_ec2_transit_gateway.my_transit_gateway]
 }
 
 # IAM Role for Direct Connect
@@ -81,7 +85,7 @@ resource "aws_iam_policy" "dx_policy" {
 }
 
 resource "aws_iam_role_policy_attachment" "dx_policy_attach" {
-    role = aws_iam_policy.dx_role.name
+    role = aws_iam_role.dx_role.name
     policy_arn = aws_iam_policy.dx_policy.arn
 }
 
